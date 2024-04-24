@@ -5,7 +5,10 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.*;
 import org.bukkit.map.*;
+import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
+
+import java.awt.image.BufferedImage;
 
 import static org.bukkit.util.NumberConversions.round;
 
@@ -25,7 +28,7 @@ public class MinimapRenderer extends MapRenderer {
         // so that NORMAL would be a scale factor of 1
         // since NORMAL has a value of 2, and 1 << 2 = 4
         // (i don't know what i am doing here)
-        final double scaleFactor = map.getScale().getValue() + 1;
+        final double scaleFactor = (map.getScale().getValue() + 1) / 4f;
 
         final Location playerLocation = player.getLocation();
         final World world = player.getWorld();
@@ -33,18 +36,20 @@ public class MinimapRenderer extends MapRenderer {
         // why
         final double playerYawRadians = Math.toRadians((playerLocation.getYaw() + 180) % 360);
 
-        renderBlocks(canvas, playerYawRadians, scaleFactor, playerLocation, world);
+        renderBlocks(canvas, scaleFactor, playerYawRadians, playerLocation, world);
 //        insertEntities(player, playerYawRadians, scaleFactor, cursorCollection);
 
         canvas.setCursors(cursorCollection);
     }
 
-    private void renderBlocks(@NotNull MapCanvas canvas, double playerYawRadians, double scaleFactor, Location playerLocation, World world) {
+    private void renderBlocks(@NotNull MapCanvas canvas, double scaleFactor, double playerYawRadians, Location playerLocation, World world) {
         // goal -> render blocks around the player
-        final XYPair cosSin = new XYPair( // so the sin and cos are only done once
-                Math.cos(playerYawRadians),
-                Math.sin(playerYawRadians)
-        );
+        final Vector origin = playerLocation.toVector();
+        final Vector forward = playerLocation.getDirection()
+                .setY(0).normalize().multiply(scaleFactor); // normalize so the up down doesn't matter
+        final Vector right = forward.clone().rotateAroundY(Math.toRadians(-90));
+
+        final Vector current = origin.clone(), curForward = forward.clone(), curRight = right.clone();
 
         for (int x = -64; x < 64; x++) {
             // x and y here act as both the offset to get the blocks
@@ -53,11 +58,14 @@ public class MinimapRenderer extends MapRenderer {
             int lastHeight = 0;
 
             for (int y = -64; y < 64; y++) {
-                // rotate the offsets with the player
-                final XYPair rotated = rotatePoint(new XYPair(x * scaleFactor, y * scaleFactor), cosSin);
+                curForward.copy(forward);
+                curRight.copy(right);
+                current.copy(origin)
+                        .add(curForward.multiply(-y))
+                        .add(curRight.multiply(x));
 
-                final int blockX = playerLocation.getBlockX() + round(rotated.x);
-                final int blockZ = playerLocation.getBlockZ() + round(rotated.y);
+                final int blockX = current.getBlockX();
+                final int blockZ = current.getBlockZ();
 
                 final Block block = world.getHighestBlockAt(blockX, blockZ);
 
@@ -137,6 +145,18 @@ public class MinimapRenderer extends MapRenderer {
     }
 
     public record XYPair(double x, double y) {
+    }
+
+    public record Box(int x, int y) {
+
+        public Box(int x, int y) {
+            this.x = Math.abs(x);
+            this.y = Math.abs(y);
+        }
+
+        public boolean isIn(int cx, int cy) {
+            return x > cx && -x < cx && y > cy && -y < cy;
+        }
     }
 
 }
