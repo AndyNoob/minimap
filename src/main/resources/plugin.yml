@@ -1,0 +1,8 @@
+name: minimap
+version: '${version}'
+main: comfortable_andy.minimap.MinimapMain
+api-version: '1.20'
+commands:
+  minimap:
+    description: Give a minimap? Idk
+    permission: minimap.command
